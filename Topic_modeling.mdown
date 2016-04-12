@@ -1,0 +1,105 @@
+#Topic modeling of San Francisco
+
+## Motviation ##
+News is very important. A lot of important decisions are made based on the latest news. With the technology today, we are able to access all kinds of news resource or social media, such as Twitter, SFGate, New York Times, very easily. But the problem is it becomes very unlikely that a person can read all the news everyday in a limited amount of time. And this is why we need machine learning to help us to do the work.
+
+In this project, I am trying to use topic modeling to capture the evolution of news topics in San Francisco from 2013 to 2015.
+
+## Topic modeling##
+Topic modeling is one of the important subjects of natural language processing. The goal of topic modeling is to capture the topics from a set of documents and cluster the documents by their topics. The basic methods for topic modeling include: LSI (Latent semantic indexing ), NMF (Non-negative matrix factorization), LDA (Latent Dirichlet allocation) and so on.
+Due to the fact that LDA doesn't have to deal with large matrix processing (SVD), it has the fastest process speed and has the most protential to achieve dynametic (real-time) topic modeling. It is also the method that will be used in this project.
+
+## Basic idea of LDA ##
+The theoretical detail of LDA will not be discussed in this blog. But the basic idea of LDA is that, it assumes a document is characterized by a particular set of topics and a topic is characterized by a distribution of words. Both the topics in a document and words in a topics follow the Dirichlet distribution. For any word in a document, it comes from a Multinomial trail of topics and words.
+By doing LDA analysis, we will be able to get a probability distribution of topics in each document and also a probability distribution of words in each topic.
+
+## Data source
+The data of this project came from the New York Times API. With time range 2013 to 2015 and search query of San Francisco, about 10300 news articles were obtained.
+
+## Preprocessing
+Preprocessing is a very important part of topic modeling. In this project, preprocessing includes tokenizing, filtering numbers and date, filtering stop words, stemming and filtering words in more than 95% or less than 3 of the documents.
+The code for token processing is shown below:
+
+```python
+def token_process(doc):
+    #stop words
+    stop_en = stopwords.words('english') + [u',',u'.',u'?',u'!',u':',u';', u')', u'(',u'[',u']',u'{',u'}','%',
+                                           'san','francisco','san francisco','new','tr','th','to','on','of','in','at',
+                                           'https','http']
+    #stemming
+    stemmer = SnowballStemmer("english")
+    #tokenize
+    tokens = [w.strip().decode('utf8') for sent in sent_tokenize(doc) for w in word_tokenize(sent)] if doc else None
+    #filter numbers
+    num_pat = re.compile(r'^(-|\+)?(\d*).?(\d+)')
+    tokens = filter(lambda x: not num_pat.match(x), tokens)
+    #filter dates
+    date_pat =  re.compile(r'^(\d{1,2})(/|-)(\d{1,2})(/|-)(\d{2,4})$')
+    tokens = filter(lambda x: not date_pat.match(x), tokens)
+    #use stemmer
+    lemmatized_tokens = map(lambda x: stemmer.stem(x), tokens)
+    #filter out empty tokens and stopwords
+    lemmatized_tokens = filter(lambda x: x and x.strip() not in stop_en, lemmatized_tokens)
+
+    x = ' '.join(lemmatized_tokens)
+    return x
+```
+Since LDA uses word counts vector instead TF-IDF vector, function CountVectorizer from sklearn was used. 
+```python
+count_vectorizer = CountVectorizer(analyzer='word', max_df=0.95, min_df=10) 
+```
+##Topic modeling
+After preprocessing, it is time to do the topic modeling. Python package gensim is used to achieve this process. For each document, we will get the probabilities of each topics within this document. Because topic modeling is an unsupervised learning process, the most difficult part is to decide the number of topics.
+
+### visulizing the topics
+One way to decide the number of topics is to visulize it. There is a alogrithm called t-Distributed Stochastic Neighbor Embedding (t-SNE) (https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding) can be applied to this case. 
+t-SNE is usually used to visulize high dimensional data. The idea of this algrithm is to find a distance in a two dimensional space based on the distance between two objects calculated by a specific metric, such as cosine-similarity. In this case, I used Jensen-Shannon divergence as the distance. As mentioned above, the assumption of LDA is that one documents is a distribution of topics. Jensen-Shannon divergence (JSD) is a metric that can be used to calculate the similarity of two distributions (https://en.wikipedia.org/wiki/Jensen–Shannon_divergence)
+By giving different number of topics to the model, I could calculate the distance between all documents and plot them by using t-SNE and check which number makes the most sense. Unfortunately, it was really slow to compute the distances.
+
+Another way is to visulize the distance between the topics and check if all the topics are well seperated. In python, there is a package called gensimvis (https://github.com/bmabey/pyLDAvis) can do the work for me. The metric used in this package is also JDS and the visulization is made by D3.
+The plot below shows the distance between topics in the case of 10 topics. (the names of the topics were added manually)
+
+![_config.yml](images/plot2.png)
+
+Actually, in my opinion, there is no correct answer of how many topics there are. When we look at an article in different level (zoom in, zoom out), we can different decisions. So in this case, I chose 10 topics.
+The plot below shows the network of the topics and the top 10 words that are mostly likely show up in each topic.
+
+![_config.yml](images/plot3.png)
+
+```python
+import networkx as nx
+def graph_terms_to_topics(lda, num_terms=10):
+    t = ['tech', 'baseball','market','health','football','crime','art','government','food','finance']
+    # create a new graph and size it
+    G = nx.Graph()
+    plt.figure(figsize=(16,16))
+
+    for i in range(0, lda.num_topics):
+        topicLabel = t[i]
+        terms = [term for term, val in lda.show_topic(i, num_terms+1)]
+        for term in terms:
+            G.add_edge(topicLabel, term, edge_color='red')
+    
+    pos = nx.spring_layout(G)
+    
+    g = G.subgraph([topic for topic, _ in pos.items() if topic in t])
+    nx.draw_networkx_labels(g, pos, font_size=20, font_color='r')
+    g = G.subgraph([term for term, _ in pos.items() if str(term) not in t])
+    nx.draw_networkx_labels(g, pos, font_size=12, font_color='orange')
+
+    nx.draw_networkx_edges(G, pos, edgelist=G.edges(), alpha=0.3)
+
+    plt.axis('off')
+    plt.show()
+
+graph_terms_to_topics(lda, num_terms=10)
+```
+
+## Topic evolution
+After deciding the topics, it is time to study the evolution of topics vs. time. Keeping in mind that each document has more than one topics, I didn't assign the articles to one topic that has the highest probability. Instead, I considered the contribution of this article to all the topics by getting the probabilities of all the topics in this article. The plot below shows the evolution of four topics. 
+The topics about football and baseball show very clear seasonal change. The topic about tech and tech companies kept a very high level because San Francisco has a lot of tech companies.
+
+![_config.yml](images/plot4.png)
+
+##Future
+As mentioned earlier, LDA has the most protential to achieve dynametic (real-time) topic modeling. In the future, it would be nice to update the database everyday so that we can keep tracking the topic changes everyday. And besides New York Times, other news resources can be used.
