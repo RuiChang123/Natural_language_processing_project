@@ -59,12 +59,12 @@ By giving different number of topics to the model, I could calculate the distanc
 Another way is to visulize the distance between the topics and check if all the topics are well seperated. In python, there is a package called gensimvis (https://github.com/bmabey/pyLDAvis) can do the work for me. The metric used in this package is also JDS and the visulization is made by D3.
 The plot below shows the distance between topics in the case of 10 topics. (the names of the topics were added manually)
 
-![_config.yml](images/plot2.png)
+![](plot2.png)
 
 Actually, in my opinion, there is no correct answer of how many topics there are. When we look at an article in different level (zoom in, zoom out), we can different decisions. So in this case, I chose 10 topics.
 The plot below shows the network of the topics and the top 10 words that are mostly likely show up in each topic.
 
-![_config.yml](images/plot3.png)
+![](plot3.png)
 
 ```python
 import networkx as nx
@@ -99,7 +99,7 @@ graph_terms_to_topics(lda, num_terms=10)
 After deciding the topics, it is time to study the evolution of topics vs. time. Keeping in mind that each document has more than one topics, I didn't assign the articles to one topic that has the highest probability. Instead, I considered the contribution of this article to all the topics by getting the probabilities of all the topics in this article. The plot below shows the evolution of four topics. 
 The topics about football and baseball show very clear seasonal change. The topic about tech and tech companies kept a very high level because San Francisco has a lot of tech companies.
 
-![_config.yml](images/plot4.png)
+![](plot4.png)
 
 ##Future
 As mentioned earlier, LDA has the most protential to achieve dynametic (real-time) topic modeling. In the future, it would be nice to update the database everyday so that we can keep tracking the topic changes everyday. And besides New York Times, other news resources can be used.
